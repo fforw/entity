@@ -1,0 +1,13 @@
+{
+    "Components" : {
+        "Appearance" : [ "x", "y", "z"],
+        "Health" : [ "health" ]
+    },
+
+    "Layout" : [
+        {
+            "components": ["Appearance", "Health"],
+            "size" : 1024
+        }
+    ]
+}

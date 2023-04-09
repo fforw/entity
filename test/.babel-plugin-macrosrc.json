@@ -1,0 +1,5 @@
+{
+    "entityMacro": {
+        "config": "test/test-macro-config.json"
+    }
+}

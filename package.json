@@ -1,0 +1,31 @@
+{
+    "name": "@fforw/entity",
+    "version": "0.0.1",
+    "description": "experimental macro sweetened entity component system",
+    "main": "src/EntitySystem.js",
+    "repository": "git@github.com:fforw/entity.git",
+    "author": "Sven Helmberger <fforw@gmx.de>",
+    "license": "Apache-2.0",
+    "dependencies": {
+        "@babel/types": "^7.21.4",
+        "babel-plugin-macros": "^3.1.0"
+    },
+    "devDependencies": {
+        "@babel/cli": "^7.16.0",
+        "@babel/core": "^7.16.0",
+        "@babel/preset-env": "^7.21.4",
+        "@babel/register": "^7.16.0",
+        "babel-plugin-espower": "^3.0.1",
+        "babel-plugin-tester": "^11.0.4",
+        "core-js": "^3.30.0",
+        "cross-env": "^7.0.3",
+        "mocha": "^10.2.0",
+        "power-assert": "^1.6.1",
+        "sinon": "^15.0.3"
+    },
+    "scripts": {
+        "prepublish": "cross-env NODE_ENV=production BABEL_ENV=package",
+        "watch": "cross-env NODE_ENV=development babel -s -w src --out-dir lib",
+        "test": "cross-env BABEL_ENV=test mocha -r @babel/register  --recursive test/ --exit"
+    }
+}

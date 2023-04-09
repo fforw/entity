@@ -1,0 +1,15 @@
+{
+    "presets": [
+        "@babel/preset-env"
+    ],
+    "plugins": [
+        "macros"
+    ],
+    "env": {
+        "test": {
+            "plugins": [
+                "babel-plugin-espower"
+            ]
+        }
+    }
+}
