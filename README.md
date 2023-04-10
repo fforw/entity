@@ -187,7 +187,7 @@ Removes the given component from the given entity.
 Adds the implied components to given entity and sets the properties of the given template as 
 component props for that entity. 
 
-## getValue(entity, name) / setValue(entity, name value)
+## getValue(entity, name) / setValue(entity, name, value)
 
 A pair of methods to read or write a single component value without using the macro.
 Note that using the macro will be slightly faster as it moves things to compile time and
