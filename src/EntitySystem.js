@@ -28,7 +28,7 @@ function TableState(entitySystem, tableName, sizeOf, combinedMask)
     this.sizeOf = sizeOf
     this.rowCounter = 0
     this.removeCounter = 0
-    this.combinedMask = combinedMask
+    this.combinedMask = BigInt(combinedMask)
     this.isEntityTable = !combinedMask
 }
 
@@ -110,15 +110,10 @@ function loadConfig(raw)
 
     if (!Layout)
     {
-        Layout = []
-        const names = Object.keys(Components)
-        for (const name of names.keys())
-        {
-            Layout.push({
-                components: [name],
-                size: MAX_ENTITY
-            })
-        }
+        Layout = [{
+            components: Object.keys(Components),
+            size: MAX_ENTITY
+        }]
     }
 
     const components = new Map()
@@ -134,7 +129,7 @@ function loadConfig(raw)
                 {
                     propNames,
                     arrayIndex: -1,
-                    mask: 0
+                    mask: 0n
                 }
             )
 
@@ -170,26 +165,49 @@ function removeHandler(handlers, handlerFn)
     return newHandlers
 }
 
+
+/**
+ * Runs the matching entry handlers from the given array of callbacks and mask
+ *
+ * @param {Array.<function|Number>} handlers    array of callbacks and mask
+ * @param {number} entity                       entity id
+ * @param {BigInt} before                       bigint before mask value
+ * @param {BigInt} newValue                     bigint new mask value
+ */
 function runEntryHandlers(handlers, entity, before, newValue)
 {
+    const bBefore= BigInt(before)
+    const bNewValue = BigInt(newValue)
+
     for (let i = 0; i < handlers.length; i+=2)
     {
-        const m = handlers[i]
+        const m = BigInt(handlers[i])
         const fn = handlers[i + 1]
-        if ((newValue & m) === m && (before & m) !== m)
+        if ((bNewValue & m) === m && (bBefore & m) !== m)
         {
             fn(entity, before, newValue)
         }
     }
 }
 
+/**
+ * Runs the matching exit handlers from the given array of callbacks and mask
+ *
+ * @param {Array.<function|Number>} handlers    array of callbacks and mask
+ * @param {number} entity                       entity id
+ * @param {BigInt} before                       bigint before mask value
+ * @param {BigInt} newValue                     bigint new mask value
+ */
 function runExitHandlers(handlers, entity, before, newValue)
 {
+    const bBefore= BigInt(before)
+    const bNewValue = BigInt(newValue)
+
     for (let i = 0; i < handlers.length; i+=2)
     {
-        const m = handlers[i]
+        const m = BigInt(handlers[i])
         const fn = handlers[i + 1]
-        if ((newValue & m) !== m && (before & m) === m)
+        if ((bNewValue & m) !== m && (bBefore & m) === m)
         {
             fn(entity, before, newValue)
         }
@@ -242,10 +260,15 @@ function EntitySystem(rawConfig)
     {
         const { components, size } = layout[i]
 
-        let offset = 1;
-        let mask = i === 0 ?  2 : 1;
+        if (components.size > 52)
+        {
+            throw new Error("There can be at most 52 entities per table.")
+        }
 
-        let combined = 0
+        let offset = 1;
+        let mask = i === 0 ?  2n : 1n
+
+        let combined = 0n
         components.forEach( componentName => {
 
             const entry = this.components.get(componentName)
@@ -264,7 +287,7 @@ function EntitySystem(rawConfig)
 
                 combined |= mask
             }
-            mask <<= 1
+            mask <<= 1n
         })
 
         if (offset > 1)
@@ -310,7 +333,7 @@ EntitySystem.prototype.newEntity = function (template)
     // zero masks
     for (let i = 0; i < this.maskSize; i++)
     {
-        entityArray[offset++] = 0
+        entityArray[offset++] = i === 0 ? 1 : 0
     }
     // unset all offsets
     for (let i = 0; i < this.maskSize; i++)
@@ -320,7 +343,7 @@ EntitySystem.prototype.newEntity = function (template)
 
     if (template)
     {
-        this.addComponents(id, template, true)
+        this.addComponents(id, template)
     }
     return id
 }
@@ -352,9 +375,12 @@ EntitySystem.prototype.mask = function(components)
     }
     
     let { arrayIndex, mask } = this.components.get(components[0])
+
     for (let i = 1; i < components.length; i++)
     {
-        const { arrayIndex : idx , mask : m} = this.components.get(components[i])
+        let { arrayIndex : idx , mask : m} = this.components.get(components[i])
+
+        m = BigInt(m)
 
         if (idx !== arrayIndex)
         {
@@ -363,7 +389,7 @@ EntitySystem.prototype.mask = function(components)
         mask |= m
     }
 
-    return mask;
+    return Number(mask)
 }
 /**
  * Returns the property name of the entity system that stores the data for the given component
@@ -385,13 +411,15 @@ EntitySystem.prototype.getTableName = function(component)
  */
 EntitySystem.prototype.forEach = function(arrayIndex, mask, fn)
 {
+    const bMask = BigInt(mask)
+
     const { e: entityArray, s: entityTableState } = this
 
     const { sizeOf, rowCounter } = entityTableState
     for (let i = 0; i < rowCounter; i++)
     {
-        const m = entityArray[i * sizeOf + arrayIndex]
-        if ((m & mask) === mask)
+        const m = BigInt(entityArray[i * sizeOf + arrayIndex])
+        if ((m & bMask) === bMask)
         {
             fn(i)
         }
@@ -403,11 +431,11 @@ function tmpArray(size)
 {
     if (!tmp || tmp.length < size)
     {
-        tmp = new Float64Array(size)
+        tmp = new Array(size)
     }
     for (let i = 0; i < size; i++)
     {
-        tmp[i] = 0
+        tmp[i] = 0n
     }
     return tmp
 }
@@ -438,14 +466,14 @@ EntitySystem.prototype.has = function(entity, components)
         }
         else if (typeof c === "number")
         {
-            masks[i] = c
+            masks[i] = BigInt(c)
         }
     }
 
     for (let j = 0; j < masks.length; j++)
     {
         const m = masks[j]
-        if ((entityArray[entityRow + j] & m) !== m)
+        if ((BigInt(entityArray[entityRow + j]) & m) !== m)
         {
             return false
         }
@@ -504,9 +532,9 @@ EntitySystem.prototype.addComponent = function addComponent(entity, name)
     const { arrayIndex, mask, propNames } = this.components.get(name)
 
     const entityRow = entity * entityTableState.sizeOf
-    const before = entityArray[entityRow + arrayIndex];
+    const before = BigInt(entityArray[entityRow + arrayIndex]);
     const newValue = before | mask
-    entityArray[entityRow + arrayIndex] = newValue
+    entityArray[entityRow + arrayIndex] = Number(newValue)
 
     const array = this[TABLE_NAMES[arrayIndex]]
     const ts = this[TABLE_STATE_NAMES[arrayIndex]]
@@ -534,9 +562,9 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
     const { e: entityArray, s: entityTableState, maskSize } = this
     const entityRow = entity * entityTableState.sizeOf
 
-    const before = entityArray[entityRow + arrayIndex];
+    const before = BigInt(entityArray[entityRow + arrayIndex])
     const newValue = before & ~mask
-    entityArray[entityRow + arrayIndex] = newValue
+    entityArray[entityRow + arrayIndex] = Number(newValue)
 
     const array = this[TABLE_NAMES[arrayIndex]]
 
@@ -544,7 +572,7 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
     {
         const ts = this[TABLE_STATE_NAMES[arrayIndex]]
 
-        if ((newValue & ts.combinedMask) === 0)
+        if ((newValue & ts.combinedMask) === 0n)
         {
             const row = entityArray[entityRow + maskSize + arrayIndex]
             if (row >= 0)
@@ -567,18 +595,13 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
  *
  * @param {number} entity       entity id
  * @param template              template with new properties implying new components
- * @param {boolean} [exists]    if true, mark entity as existing (internal use)
  */
-EntitySystem.prototype.addComponents = function addComponents(entity, template, exists = false)
+EntitySystem.prototype.addComponents = function addComponents(entity, template)
 {
     const { e: entityArray, s: entityTableState, maskSize } = this
     const entityRow = entity * entityTableState.sizeOf
 
-    const masks = TABLE_NAMES.slice(0, this.maskSize).map((name, i) => entityArray[entityRow + i])
-    if (exists)
-    {
-        masks[0] |= 1
-    }
+    const masks = TABLE_NAMES.slice(0, this.maskSize).map((name, i) => BigInt(entityArray[entityRow + i]))
 
     const arrayRows = new Map()
 
@@ -620,9 +643,9 @@ EntitySystem.prototype.addComponents = function addComponents(entity, template, 
     for (let j = 0; j < masks.length; j++)
     {
         const mask = masks[j]
-        const before = entityArray[entityRow + j];
+        const before = BigInt(entityArray[entityRow + j])
         const newValue = before | mask
-        entityArray[entityRow + j] = newValue
+        entityArray[entityRow + j] = Number(newValue)
 
         runEntryHandlers(this.entryHandlers, entity, before, newValue)
     }

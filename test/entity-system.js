@@ -398,4 +398,87 @@ describe("Entity System", () => {
 
 	})
 
+	it("supports 53 bit masks", () => {
+
+		const entitySystem = new EntitySystem({
+				"Components": {
+					"Appearance": ["x", "y", "z"],
+					"Health": ["health"],
+					"Tag0": [],
+					"Tag1": [],
+					"Tag2": [],
+					"Tag3": [],
+					"Tag4": [],
+					"Tag5": [],
+					"Tag6": [],
+					"Tag7": [],
+					"Tag8": [],
+					"Tag9": [],
+					"Tag10": [],
+					"Tag11": [],
+					"Tag12": [],
+					"Tag13": [],
+					"Tag14": [],
+					"Tag15": [],
+					"Tag16": [],
+					"Tag17": [],
+					"Tag18": [],
+					"Tag19": [],
+					"Tag20": [],
+					"Tag21": [],
+					"Tag22": [],
+					"Tag23": [],
+					"Tag24": [],
+					"Tag25": [],
+					"Tag26": [],
+					"Tag27": [],
+					"Tag28": [],
+					"Tag29": [],
+					"Tag30": [],
+					"Tag31": [],
+					"Tag32": [],
+					"Tag33": [],
+					"Tag34": [],
+					"Tag35": [],
+					"Tag36": [],
+					"Tag37": [],
+					"Tag38": [],
+					"Tag39": [],
+					"Tag40": [],
+					"Tag41": [],
+					"Tag42": [],
+					"Tag43": [],
+					"Tag44": [],
+					"Tag45": [],
+					"Tag46": [],
+					"Tag47": [],
+					"Tag48": [],
+					"Tag49": [],
+				}
+			}
+		)
+
+		const mask = entitySystem.mask(["Tag49"])
+		const enterSpy = sinon.spy()
+		const exitSpy = sinon.spy()
+		entitySystem.onEnter(mask, enterSpy)
+		entitySystem.onExit(mask, exitSpy)
+
+		const entity = entitySystem.newEntity()
+		assert(entitySystem.exists(entity))
+		assert(entitySystem.e[0] === 1)
+
+
+		entitySystem.addComponent(entity, "Tag49")
+
+		assert( entitySystem.has(entity, ["Tag49"]))
+		assert(entitySystem.e[0] === Math.pow(2,52) + 1)
+		entitySystem.removeComponent(entity, "Tag49")
+		assert( !entitySystem.has(entity, ["Tag49"]))
+
+		assert(enterSpy.callCount === 1)
+		assert(exitSpy.callCount === 1)
+
+	})
+
 });
