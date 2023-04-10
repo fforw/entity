@@ -21,6 +21,84 @@ const MAX_ENTITY = 1024
  *
  */
 
+function TableState(entitySystem, tableName, sizeOf, combinedMask)
+{
+    this.entitySystem = entitySystem
+    this.tableName = tableName
+    this.sizeOf = sizeOf
+    this.rowCounter = 0
+    this.removeCounter = 0
+    this.combinedMask = combinedMask
+    this.isEntityTable = !combinedMask
+}
+
+TableState.prototype.insertRow = function insertRow()
+{
+    const { sizeOf, entitySystem, tableName, isEntityTable } = this
+    const array = entitySystem[tableName];
+
+    let id;
+    if (this.removeCounter > 0)
+    {
+        for (let i = 0; i < this.rowCounter; i++)
+        {
+            const offset = i * sizeOf
+            const empty = isEntityTable ? (array[offset] & 1) === 0 : array[offset] < 0
+            if (empty)
+            {
+                id = i;
+                this.removeCounter--
+                break;
+            }
+        }
+
+        if (id === undefined)
+        {
+            throw new Error("Illegal State: could not find empty slot but removeCounter > 0")
+        }
+    }
+    else
+    {
+        id = this.rowCounter++
+    }
+
+    if (id * sizeOf >= array.length)
+    {
+        const newSize = array.length * 2
+
+        console.log("Growing Table '" + tableName + "' to " + newSize)
+
+        const copy = new Float64Array(newSize)
+        for (let j = 0; j < array.length; j++)
+        {
+            copy[j] = array[j]
+        }
+        entitySystem[tableName] = copy
+    }
+    return id;
+}
+
+TableState.prototype.removeRow = function removeRow(row)
+{
+    const { sizeOf, entitySystem, tableName, isEntityTable } = this
+    const array  = entitySystem[tableName]
+
+    if (isEntityTable)
+    {
+        array[row * sizeOf] &= ~1
+    }
+    else
+    {
+        array[row * sizeOf] = -1
+    }
+
+    this.removeCounter++
+}
+
+
+const TABLE_NAMES = ["c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9"]
+const TABLE_STATE_NAMES = ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"]
+
 /**
  * Loads and validates the given raw JSON config
  * @param {EntitySystemConfig}} raw
@@ -28,7 +106,20 @@ const MAX_ENTITY = 1024
  */
 function loadConfig(raw)
 {
-    let { Components, Layout } = raw
+    let { Components, Layout, entityCount = 1024 } = raw
+
+    if (!Layout)
+    {
+        Layout = []
+        const names = Object.keys(Components)
+        for (const name of names.keys())
+        {
+            Layout.push({
+                components: [name],
+                size: MAX_ENTITY
+            })
+        }
+    }
 
     const components = new Map()
     const componentsByProp = new Map()
@@ -38,7 +129,14 @@ function loadConfig(raw)
         {
             const propNames = Components[component]
 
-            components.set(component, { propNames, arrayIndex: -1, mask: 0 })
+            components.set(
+                component,
+                {
+                    propNames,
+                    arrayIndex: -1,
+                    mask: 0
+                }
+            )
 
             propNames.forEach(name => {
                 const comp = componentsByProp.get(name)
@@ -51,19 +149,7 @@ function loadConfig(raw)
         }
     }
 
-    if (!Layout)
-    {
-        Layout = []
-        for (const name of componentsByProp.keys())
-        {
-            Layout.push({
-                components: [name],
-                size: MAX_ENTITY
-            })
-        }
-    }
-
-    return { components, componentsByProp, layout: Layout };
+    return { components, componentsByProp, layout: Layout, entityCount };
 }
 
 
@@ -80,7 +166,6 @@ function removeHandler(handlers, handlerFn)
         {
             newHandlers.push(mask, fn)
         }
-
     }
     return newHandlers
 }
@@ -104,29 +189,11 @@ function runExitHandlers(handlers, entity, before, newValue)
     {
         const m = handlers[i]
         const fn = handlers[i + 1]
-        if ((newValue & m) === 0 && (before & m) !== 0)
+        if ((newValue & m) !== m && (before & m) === m)
         {
             fn(entity, before, newValue)
         }
     }
-}
-
-function getSameTableMask(entitySystem, name, op)
-{
-    const components = Array.isArray(name) ? name : [name]
-
-    let { arrayIndex, mask } = entitySystem.components.get(components[0])
-    for (let i = 1; i < components.length; i++)
-    {
-        const cfg = entitySystem.components.get(components[i])
-        if (arrayIndex !== cfg.arrayIndex)
-        {
-            throw new Error(op + ": All components must have the same array")
-        }
-        mask |= cfg.mask
-    }
-
-    return [ arrayIndex, mask ]
 }
 
 
@@ -138,7 +205,7 @@ function getSameTableMask(entitySystem, name, op)
  */
 function EntitySystem(rawConfig)
 {
-    const { components, componentsByProp, layout } = loadConfig(rawConfig)
+    const { components, componentsByProp, layout, entityCount } = loadConfig(rawConfig)
 
     /**
      *
@@ -150,33 +217,41 @@ function EntitySystem(rawConfig)
      * @type {Map<String,{component:String, array: number, offset: number, sizeOf: number, componentMask: number}>}
      */
     this.componentsByProp = componentsByProp
-    this.arrays = []
-    this.sizeOfs = []
 
-    this.entityCounter = 0
-    this.removeCounter = 0
+    const arrayCount = layout.length
+    this.maskSize = arrayCount
+
+    const entityTableSizeOf = this.maskSize * 2
+
+    // entity table. Each row is one mask value per table plus a componentOffset per component
+    this.e = new Float64Array(entityTableSizeOf * entityCount);
+    // table state for the entity table
+    this.s = new TableState(this, "e", entityTableSizeOf, 0)
+
+    // component tables
+    this.c0 = null; this.c1 = null; this.c2 = null; this.c3 = null; this.c4 = null;
+    this.c5 = null; this.c6 = null; this.c7 = null; this.c8 = null; this.c9 = null;
+    // component table states
+    this.s0 = null; this.s1 = null; this.s2 = null; this.s3 = null; this.s4 = null;
+    this.s5 = null; this.s6 = null; this.s7 = null; this.s8 = null; this.s9 = null;
 
     this.entryHandlers = []
     this.exitHandlers = []
 
-    for (let i = 0; i < layout.length; i++)
+    for (let i = 0; i < arrayCount; i++)
     {
         const { components, size } = layout[i]
 
-        if (components.length > 52)
-        {
-            throw new Error("Config-Error: Layout #" + i + "has more than the possible maximum of 52 components.")
-        }
+        let offset = 1;
+        let mask = i === 0 ?  2 : 1;
 
-        const arrayIndex = this.arrays.length
-
-        let offset = arrayIndex === 0 ? 1 : 0;
-        let mask = 2
+        let combined = 0
         components.forEach( componentName => {
+
             const entry = this.components.get(componentName)
             const { propNames } = entry
 
-            entry.arrayIndex = arrayIndex;
+            entry.arrayIndex = i;
             entry.mask = mask;
 
             for (let j = 0; j < propNames.length; j++)
@@ -184,26 +259,31 @@ function EntitySystem(rawConfig)
                 const name = propNames[j]
                 const cfg = componentsByProp.get(name)
                 cfg.componentMask = mask
-                cfg.array = arrayIndex
+                cfg.array = i
                 cfg.offset = offset++
+
+                combined |= mask
             }
             mask <<= 1
         })
 
-        const arrayLen = offset * size
-
-        //console.log("Creating array #"+ arrayIndex + " for ", components.join(", "), ": sizeOf =", offset, ", size = ", size, " => ", arrayLen)
-
-        this.arrays.push(
-            new Float64Array(arrayLen)
-        )
-        this.sizeOfs.push(
-            offset
-        )
-        for (const cfg of componentsByProp.values())
+        if (offset > 1)
         {
-            cfg.sizeOf = this.sizeOfs[cfg.array]
+            const arrayLen = offset * size
+
+            //console.log("Creating array #"+ arrayIndex + " for ", components.join(", "), ": sizeOf =", offset, ", size = ", size, " => ", arrayLen)
+
+            const array = new Float64Array(arrayLen)
+            const tableState = new TableState(this, TABLE_NAMES[i], offset, combined)
+            this[TABLE_NAMES[i]] = array
+            this[TABLE_STATE_NAMES[i]] = tableState
         }
+    }
+
+    for (const cfg of componentsByProp.values())
+    {
+        cfg.sizeOf = this[TABLE_STATE_NAMES[cfg.array]].sizeOf
+
     }
 }
 
@@ -219,56 +299,29 @@ function EntitySystem(rawConfig)
  */
 EntitySystem.prototype.newEntity = function (template)
 {
-    let id = -1;
-    if (this.removeCounter > 0)
-    {
-        const a0 = this.arrays[0]
-        for (let i = 0; i < this.entityCounter; i++)
-        {
-            const mask = a0[i]
+    const { e: entityArray, s : entityTableState } = this
 
-            if ((mask & 1) === 0)
-            {
-                id = i;
-                this.removeCounter--
-                break;
-            }
-        }
-        
-        if (id === -1)
-        {
-            throw new Error("Illegal State: could not find empty slot but removeCounter > 0")
-        }
+    const id = entityTableState.insertRow();
+
+    // mark all component offsets as having no component
+    const { sizeOf } = entityTableState
+
+    let offset = id * sizeOf
+    // zero masks
+    for (let i = 0; i < this.maskSize; i++)
+    {
+        entityArray[offset++] = 0
     }
-    else
+    // unset all offsets
+    for (let i = 0; i < this.maskSize; i++)
     {
-        id = this.entityCounter++
-    }
-
-    for (let i = 0; i < this.arrays.length; i++)
-    {
-        const array = this.arrays[i]
-
-        if (id * this.sizeOfs[i] >= array.length)
-        {
-            const newSize = array.length * 2
-
-            console.log("Growing Array #" + i + " to " + newSize)
-
-            const copy = new Float64Array(newSize)
-            for (let j = 0; j < array.length; j++)
-            {
-                copy[j] = array[j]
-            }
-            this.arrays[i] = copy
-        }
+        entityArray[offset++] = -1
     }
 
     if (template)
     {
         this.addComponents(id, template, true)
     }
-
     return id
 }
 
@@ -313,30 +366,31 @@ EntitySystem.prototype.mask = function(components)
     return mask;
 }
 /**
- * Returns the array index for the given component. It corresponds to the index of the given Component within the Layout.
+ * Returns the property name of the entity system that stores the data for the given component
  *
  * @param {String} component    component name
  *
- * @return {number} array index
+ * @return {String} property name
  */
-EntitySystem.prototype.getArrayIndex = function(component)
+EntitySystem.prototype.getTableName = function(component)
 {
-    return this.components.get(component).arrayIndex
+    return TABLE_NAMES[this.components.get(component).arrayIndex]
 }
 
 /**
  * Iterates over the entities matching the given component mask and arrayIndex
- * @param {number} array    array index (correspond to the index of the Layout entry in the config)
- * @param {number} mask     bitMask for the components
- * @param {function} fn
+ * @param {number} arrayIndex   array index (correspond to the index of the Layout entry in the config)
+ * @param {number} mask         bitMask for the components
+ * @param {function} fn         callback called with the entity ids
  */
-EntitySystem.prototype.forEach = function(array, mask, fn)
+EntitySystem.prototype.forEach = function(arrayIndex, mask, fn)
 {
-    const a = this.arrays[array]
-    const sizeOf = this.sizeOfs[array]
-    for (let i = 0; i < a.length; i += sizeOf)
+    const { e: entityArray, s: entityTableState } = this
+
+    const { sizeOf, rowCounter } = entityTableState
+    for (let i = 0; i < rowCounter; i++)
     {
-        const m = a[i]
+        const m = entityArray[i * sizeOf + arrayIndex]
         if ((m & mask) === mask)
         {
             fn(i)
@@ -344,26 +398,54 @@ EntitySystem.prototype.forEach = function(array, mask, fn)
     }
 }
 
+let tmp = null
+function tmpArray(size)
+{
+    if (!tmp || tmp.length < size)
+    {
+        tmp = new Float64Array(size)
+    }
+    for (let i = 0; i < size; i++)
+    {
+        tmp[i] = 0
+    }
+    return tmp
+}
+
+
 /**
  * Returns true if the given entity has all given components. The components do not need to belong to the same table.
- * @param {number} entity               entity id
- * @param {Array.<String>} components   component names
+ * 
+ * @param {number} entity                       entity id
+ * @param {Array.<String|Number>} components    Either an array of component names (that can be from different tables) or an array of component masks, one mask for each table
  *
  * @return {boolean} true if entity has all components
  */
 EntitySystem.prototype.has = function(entity, components)
 {
-    const masks = this.arrays.map(a => 0)
+    const { e: entityArray, s: entityTableState } = this
+    const entityRow = entity * entityTableState.sizeOf
+
+    const masks = tmpArray(this.maskSize)
     for (let i = 0; i < components.length; i++)
     {
-        const { arrayIndex, mask } = this.components.get(components[i])
-        masks[arrayIndex] |= mask
+        const c = components[i]
+
+        if (typeof c === "string")
+        {
+            const { arrayIndex, mask } = this.components.get(c)
+            masks[arrayIndex] |= mask
+        }
+        else if (typeof c === "number")
+        {
+            masks[i] = c
+        }
     }
 
     for (let j = 0; j < masks.length; j++)
     {
         const m = masks[j]
-        if ((this.arrays[j][entity * this.sizeOfs[j]] & m) !== m)
+        if ((entityArray[entityRow + j] & m) !== m)
         {
             return false
         }
@@ -379,11 +461,9 @@ EntitySystem.prototype.has = function(entity, components)
  */
 EntitySystem.prototype.exists = function exists(entity)
 {
-    const { arrays, sizeOfs } = this;
-    const array = arrays[0]
-    const sizeOf = sizeOfs[0]
+    const { e: array, s: tableState } = this;
 
-    return !!(array[entity * sizeOf] & 1)
+    return !!(array[entity * tableState.sizeOf] & 1)
 }
 
 /**
@@ -393,32 +473,51 @@ EntitySystem.prototype.exists = function exists(entity)
  */
 EntitySystem.prototype.removeEntity = function removeEntity(entity)
 {
-    const { arrays, sizeOfs } = this;
+    const { e : entityArray, s : entityTableState, maskSize } = this;
 
-    for (let i = 0; i < arrays.length; i++)
+    const offset = entity * entityTableState.sizeOf
+    for (let i = 0; i < maskSize; i++)
     {
-        const array = arrays[i]
-        const sizeOf = sizeOfs[i]
-        array[entity * sizeOf] = 0
+        const rowOffset = entityArray[offset + maskSize + i]
+        entityArray[offset + maskSize + i] = -1
+        if (rowOffset >= 0)
+        {
+            const array = this[TABLE_NAMES[i]]
+            const ts = this[TABLE_STATE_NAMES[i]]
+            array[rowOffset] = -1
+            ts.removeRow(rowOffset / ts.sizeOf)
+        }
     }
-
-    this.removeCounter++
+    entityTableState.removeRow(entity)
 }
 
 /**
  * Adds the given component to the given entity.
  *
- * @param {number} entity                   entity id
- * @param {String|Array.<String>} name      component name or array of component names
+ * @param {number} entity   entity id
+ * @param {String} name     component name
  */
 EntitySystem.prototype.addComponent = function addComponent(entity, name)
 {
-    const [arrayIndex,mask] = getSameTableMask(this, name, "addComponent")
+    const { e: entityArray, s: entityTableState, maskSize } = this
 
-    const before = this.arrays[arrayIndex][entity * this.sizeOfs[arrayIndex]];
+    const { arrayIndex, mask, propNames } = this.components.get(name)
+
+    const entityRow = entity * entityTableState.sizeOf
+    const before = entityArray[entityRow + arrayIndex];
     const newValue = before | mask
-    this.arrays[arrayIndex][entity * this.sizeOfs[arrayIndex]] = newValue
+    entityArray[entityRow + arrayIndex] = newValue
 
+    const array = this[TABLE_NAMES[arrayIndex]]
+    const ts = this[TABLE_STATE_NAMES[arrayIndex]]
+
+    let componentRow = entityArray[entityRow + maskSize + arrayIndex]
+    if (propNames.length && componentRow < 0)
+    {
+        componentRow = ts.insertRow()
+        entityArray[entityRow + maskSize + arrayIndex] = componentRow
+        array[componentRow * ts.sizeOf] = entity
+    }
     runEntryHandlers(this.entryHandlers, entity, before, newValue)
 }
 
@@ -431,10 +530,33 @@ EntitySystem.prototype.addComponent = function addComponent(entity, name)
  */
 EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
 {
-    const [arrayIndex,mask] = getSameTableMask(this, name, "removeComponent")
-    const before = this.arrays[arrayIndex][entity * this.sizeOfs[arrayIndex]]
+    const { arrayIndex, mask } = this.components.get(name)
+    const { e: entityArray, s: entityTableState, maskSize } = this
+    const entityRow = entity * entityTableState.sizeOf
+
+    const before = entityArray[entityRow + arrayIndex];
     const newValue = before & ~mask
-    this.arrays[arrayIndex][entity * this.sizeOfs[arrayIndex]] = newValue
+    entityArray[entityRow + arrayIndex] = newValue
+
+    const array = this[TABLE_NAMES[arrayIndex]]
+
+    if (array)
+    {
+        const ts = this[TABLE_STATE_NAMES[arrayIndex]]
+
+        if ((newValue & ts.combinedMask) === 0)
+        {
+            const row = entityArray[entityRow + maskSize + arrayIndex]
+            if (row >= 0)
+            {
+                entityArray[entityRow + maskSize + arrayIndex] = -1
+
+                ts.removeRow(row / ts.sizeOf)
+                array[row] = -1
+            }
+        }
+    }
+
 
     runExitHandlers(this.exitHandlers, entity, before, newValue)
 }
@@ -449,20 +571,48 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
  */
 EntitySystem.prototype.addComponents = function addComponents(entity, template, exists = false)
 {
-    const masks = this.arrays.map((a,arrayIndex) => a[entity * this.sizeOfs[arrayIndex]])
+    const { e: entityArray, s: entityTableState, maskSize } = this
+    const entityRow = entity * entityTableState.sizeOf
+
+    const masks = TABLE_NAMES.slice(0, this.maskSize).map((name, i) => entityArray[entityRow + i])
     if (exists)
     {
         masks[0] |= 1
     }
-    
+
+    const arrayRows = new Map()
+
     for (let name in template)
     {
         if (template.hasOwnProperty(name))
         {
             const { array, offset, sizeOf, componentMask } = this.getPropConfig(name)
             const v = template[name]
-            this.arrays[array][entity * sizeOf + offset] = v
 
+            let componentRow = arrayRows.get(array)
+            if (componentRow === undefined)
+            {
+                const ts = this[TABLE_STATE_NAMES[array]]
+
+                const value = entityArray[entityRow + maskSize + array]
+                if (value >= 0)
+                {
+                    componentRow = value / sizeOf
+                }
+                else
+                {
+                    componentRow = ts.insertRow()
+                    this[TABLE_NAMES[array]][componentRow * sizeOf] = entity
+                }
+
+                arrayRows.set(array, componentRow)
+            }
+
+            const componentOffset = componentRow * sizeOf
+
+            entityArray[entityRow + maskSize + array] = componentOffset
+            
+            this[TABLE_NAMES[array]][componentOffset + offset] = v
             masks[array] |= componentMask
         }
     }
@@ -470,9 +620,9 @@ EntitySystem.prototype.addComponents = function addComponents(entity, template, 
     for (let j = 0; j < masks.length; j++)
     {
         const mask = masks[j]
-        const before = this.arrays[j][entity * this.sizeOfs[j]];
+        const before = entityArray[entityRow + j];
         const newValue = before | mask
-        this.arrays[j][entity * this.sizeOfs[j]] = newValue
+        entityArray[entityRow + j] = newValue
 
         runEntryHandlers(this.entryHandlers, entity, before, newValue)
     }
@@ -520,8 +670,13 @@ EntitySystem.prototype.getPropConfig = function getPropConfig(name, ex = Error.p
  */
 EntitySystem.prototype.getValue = function getValue(entity, name)
 {
-    const { array, offset, sizeOf } = this.getPropConfig(name)
-    return this.arrays[array][entity * sizeOf + offset];
+    const { array, offset } = this.getPropConfig(name)
+    const { e: entityArray, s: entityTableState, maskSize } = this
+
+    const entityRow = entity * entityTableState.sizeOf
+    const componentOffset = entityArray[ entityRow + maskSize + array]
+
+    return this[TABLE_NAMES[array]][componentOffset + offset];
 }
 
 /**
@@ -535,8 +690,13 @@ EntitySystem.prototype.getValue = function getValue(entity, name)
  */
 EntitySystem.prototype.setValue = function setValue(entity, name, value)
 {
-    const { array, offset, sizeOf } = this.getPropConfig(name)
-    this.arrays[array][entity * sizeOf + offset] = value;
+    const { array, offset } = this.getPropConfig(name)
+    const { e: entityArray, s: entityTableState, maskSize } = this
+
+    const entityRow = entity * entityTableState.sizeOf
+    const componentOffset = entityArray[ entityRow + maskSize + array]
+
+    this[TABLE_NAMES[array]][componentOffset + offset] = value
 }
 
 EntitySystem.prototype.onEnter = function onEnter(mask, fn)
@@ -555,5 +715,8 @@ EntitySystem.prototype.onExit = function onExit(mask, fn)
         this.exitHandlers = removeHandler(this.exitHandlers, fn)
     }
 }
+
+EntitySystem.TABLE_NAMES = TABLE_NAMES
+EntitySystem.TABLE_STATE_NAMES = TABLE_STATE_NAMES
 
 module.exports = EntitySystem

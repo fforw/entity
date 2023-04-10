@@ -13,6 +13,7 @@
     "devDependencies": {
         "@babel/cli": "^7.16.0",
         "@babel/core": "^7.16.0",
+        "@babel/generator": "^7.21.4",
         "@babel/preset-env": "^7.21.4",
         "@babel/register": "^7.16.0",
         "babel-plugin-espower": "^3.0.1",

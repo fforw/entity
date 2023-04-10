@@ -17,20 +17,27 @@ describe("entity.macro", () => {
 				{
 					code: `
 					  import entity from '../entity.macro'
-				
+
 						entity((a,b) => {
 							a.x = 0
-							
 							a.health = 0
+
+							a++
+
 							console.log(b.y,c)
 							a=3
 						})`,
 					output:`
-						const _array = entitySystem.arrays[0];
-						_array[a * 5 + 1] = 0;
-						_array[a * 5 + 4] = 0;
-						console.log(_array[b * 5 + 2], c);
-						a = 3;`
+						let _a_T0_ = entitySystem.e[a * 2 + 1],
+						  _b_T0_ = entitySystem.e[b * 2 + 1],
+						  _array = entitySystem.c0;
+						_array[_a_T0_ + 1] = 0;
+						_array[_a_T0_ + 4] = 0;
+						a++;
+						_a_T0_ = entitySystem.e[a * 2 + 1];
+						console.log(_array[_b_T0_ + 2], c);
+						a = 3;
+						_a_T0_ = entitySystem.e[a * 2 + 1];`
 				},
 
 				{
@@ -41,25 +48,23 @@ describe("entity.macro", () => {
 							entitySystem.forEach(0,"Health", a => a.health)
 						})`,
 					output: `
-						const _array = entitySystem.arrays[0];
-						entitySystem.forEach(0, "Health", (a) => _array[a * 5 + 4]);
-					`
+						let _a_T0_ = entitySystem.e[a * 2 + 1],
+						  _array = entitySystem.c0;
+						entitySystem.forEach(0, "Health", (a) => _array[_a_T0_ + 4]);`
 				},
 				{
 					code: `
-					import entity from '../entity.macro'
-					
-					entity(entity => {
-						entity.x = 0
-					})`,
+						import entity from '../entity.macro'
+						
+						entity(entity => {
+							entity.x = 0
+						})`,
 					output:`
-					const _array = entitySystem.arrays[0];
-					_array[entity * 5 + 1] = 0;`
+						let _entity_T0_ = entitySystem.e[entity * 2 + 1],
+						  _array = entitySystem.c0;
+						_array[_entity_T0_ + 1] = 0;`
 				},
-
-
 			],
 		})
-
 	});
 });

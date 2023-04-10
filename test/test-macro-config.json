@@ -7,7 +7,8 @@
     "Layout" : [
         {
             "components": ["Appearance", "Health"],
-            "size" : 1024
+            "size" : 10
         }
-    ]
+    ],
+    "entityCount": 10
 }
