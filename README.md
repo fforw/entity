@@ -61,7 +61,8 @@ You need to enable the "babel-plugin-macros" plugin in your babel configuration.
 
 The macro can be configured by two configuration options in the .babelrc ( or any
 other config location suported by the cosmicconfig used by babel macros e.g. *.babel-plugin-macrosrc.json*)
-
+                  
+Here's an example of using the .babelrc to configure the macro:
 
 ```json
 {
@@ -94,7 +95,7 @@ The entitySystemName changes the variable name the macro expects the entity syst
 (Default is "entitySystem")
 
 #### debug option
-The *debug* option will make the macro 
+The *debug* option will make the macro log the generated code.
              
 ## EntitySystem Configuration
 
