@@ -26,6 +26,14 @@ faster by moving most of the access logic into compile time.
 
 Also, the variable *a* only contains a numerical entity id, the macro can provide normal 
 member access to the component props of the entity. 
+
+$entity doesn't mean anything and does nothing beyond being a marker in the AST marking the limit of the macro transformation. 
+The whole thing including import gets removed from the final code.
+
+The parameters of the arrow function are just present to mark for what variables we want the macro's member access magic 
+to do it's thing. A variable "a" outside of $entity is exactly the same as inside, but that fact that the arrow function
+makes it seem like it's different is actually a good thing because we can pretend that the new function comes with 
+differently typed entity variables and our IDEs stop complaining about us trying to do member access on a number. 
                                                   
 #### Technical details
 
