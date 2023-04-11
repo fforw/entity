@@ -29,10 +29,10 @@ describe("Entity System", () => {
 		)
 
 		const dummy = system.newEntity({
+			_ : ["Tag"],
 			x: 1, y: 2, z: 3,
 			health: 4
 		})
-		system.addComponent(dummy, "Tag")
 
 		assert(system.e[0] === 15)	// "exists" bit + 3 components
 		assert(system.e[1] === 0)
@@ -108,7 +108,7 @@ describe("Entity System", () => {
 		const columnRow = 5
 
 		assert(system.e[idRow    ] === 7) // "exists" + Appearance + Health
-		assert(system.e[idRow + 1] === 0)
+		assert(system.e[idRow + 1] === 0) 
 		assert(system.e[idRow + 2] === columnRow)
 		assert(system.s0.rowCounter === 2)
 		assert(system.c0[columnRow    ] === id)
@@ -259,7 +259,6 @@ describe("Entity System", () => {
 		})
 
 		assert( id + 1 === id2)
-
 
 		const orig = id;
 		// the $entity block is just a AST-marker to define a code-block and the entity variables we want magically enhanced
@@ -478,6 +477,75 @@ describe("Entity System", () => {
 
 		assert(enterSpy.callCount === 1)
 		assert(exitSpy.callCount === 1)
+
+	})
+
+	it("exports its state as JSON object graph", () => {
+
+		const config = {
+			"Components": {
+				"Appearance": ["x", "y", "z"],
+				"Health": ["health"],
+				"Tag": [],
+			}
+		}
+		let system = new EntitySystem(config)
+
+		const dummy = system.newEntity({
+			_ : ["Tag"],
+			x: 1, y: 2, z: 3,
+			health: 4
+		})
+
+		const id = system.newEntity({
+			x: 10, y: 20, z: 30,
+			health: 100
+		})
+
+		const json = system.toJSON()
+		assert.deepEqual(json, {
+				"type": json.type,
+				"version": 1,
+				"entities": [
+					{
+						"_id": 0,
+						"_": ["Tag"],
+						"x": 1,
+						"y": 2,
+						"z": 3,
+						"health": 4
+					},
+					{
+						"_id": 1,
+						"x": 10,
+						"y": 20,
+						"z": 30,
+						"health": 100
+					}
+				]
+			}
+		)
+
+		system = EntitySystem.fromJSON(config, json)
+
+		const e0 = 0
+		const e1 = 1
+
+		assert( system.has(e0, ["Tag"]))
+
+		$entity((e0,e1) => {
+
+			assert(e0.x === 1)
+			assert(e0.y === 2)
+			assert(e0.z === 3)
+			assert(e0.health === 4)
+
+			assert(e1.x === 10)
+			assert(e1.y === 20)
+			assert(e1.z === 30)
+			assert(e1.health === 100)
+
+		})
 
 	})
 

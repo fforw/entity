@@ -1,4 +1,7 @@
 const MAX_ENTITY = 1024
+const EXPORT_VERSION = 1
+
+const pkgJson = require("../package.json")
 
 /**
  * Entity system configuration from the view point of a single prop name
@@ -6,8 +9,9 @@ const MAX_ENTITY = 1024
  * @typedef EntitySystemConfig
  * @type {object}
  *
- * @property {Object<String,Array.<String>>} Components             Object of component names mapping to a prop name array
- * @property {Array<{ components: Array.<LayoutJSON> }>} Layout   Initial number of rows / entities
+ * @property {Object<String,Array.<String>>} Components           Object of component names mapping to a prop name array
+ * @property {Array<{ components: Array.<LayoutJSON> }>} Layout   Defines the layout of components within the tables
+ * @property {number} entityCount                                 Initial allocation of entities
  *
  */
 
@@ -21,7 +25,20 @@ const MAX_ENTITY = 1024
  *
  */
 
-function TableState(entitySystem, tableName, sizeOf, combinedMask)
+/**
+ * Exported JSON object hierarchy.
+ *
+ * @typedef EntitySystemJSONExport
+ * @type {object}
+ *
+ * {entities: *[], type: string, version: number}
+ * @property {String} entities              clear text type string
+ * @property {Number} version               export json version
+ * @property {Array.<String>} entities      one object per entity containing the component props and an array prop "_"
+ *                                          for tag components. 
+ */
+
+function TableState(entitySystem, tableName, sizeOf, components, combinedMask)
 {
     this.entitySystem = entitySystem
     this.tableName = tableName
@@ -29,16 +46,26 @@ function TableState(entitySystem, tableName, sizeOf, combinedMask)
     this.rowCounter = 0
     this.removeCounter = 0
     this.combinedMask = BigInt(combinedMask)
+    this.components = components
     this.isEntityTable = !combinedMask
 }
 
-TableState.prototype.insertRow = function insertRow()
+TableState.prototype.insertRow = function insertRow(at = null)
 {
     const { sizeOf, entitySystem, tableName, isEntityTable } = this
     const array = entitySystem[tableName];
 
     let id;
-    if (this.removeCounter > 0)
+
+    if (at !== null)
+    {
+         id = at
+         if (at > this.rowCounter)
+         {
+             this.rowCounter = at + 1
+         }
+    }
+    else if (this.removeCounter > 0)
     {
         for (let i = 0; i < this.rowCounter; i++)
         {
@@ -127,6 +154,7 @@ function loadConfig(raw)
             components.set(
                 component,
                 {
+                    name: component,
                     propNames,
                     arrayIndex: -1,
                     mask: 0n
@@ -134,12 +162,23 @@ function loadConfig(raw)
             )
 
             propNames.forEach(name => {
+
+                if (typeof name !== "string" || !name.length)
+                {
+                    throw new Error("Invalid prop name: Must be a non-empty String")
+                }
+
+                if (name === "_" || name === "_id")
+                {
+                    throw new Error("Invalid prop name: _ and _id are reserved for internal purposes and cannot be used as column names")
+                }
+
                 const comp = componentsByProp.get(name)
                 if (comp)
                 {
                     throw Error("Config-Error: " + name + " already defined for Component " + comp)
                 }
-                componentsByProp.set(name, { component, array: -1, offset: -1, sizeOf: -1, componentMask: 0})
+                componentsByProp.set(name, { component, name, array: -1, offset: -1, sizeOf: -1, componentMask: 0})
             })
         }
     }
@@ -176,14 +215,12 @@ function removeHandler(handlers, handlerFn)
  */
 function runEntryHandlers(handlers, entity, before, newValue)
 {
-    const bBefore= BigInt(before)
-    const bNewValue = BigInt(newValue)
 
     for (let i = 0; i < handlers.length; i+=2)
     {
-        const m = BigInt(handlers[i])
+        const m = handlers[i]
         const fn = handlers[i + 1]
-        if ((bNewValue & m) === m && (bBefore & m) !== m)
+        if ((newValue & m) === m && (before & m) !== m)
         {
             fn(entity, before, newValue)
         }
@@ -193,7 +230,7 @@ function runEntryHandlers(handlers, entity, before, newValue)
 /**
  * Runs the matching exit handlers from the given array of callbacks and mask
  *
- * @param {Array.<function|Number>} handlers    array of callbacks and mask
+ * @param {Array.<function|BigInt>} handlers    array of callbacks and mask
  * @param {number} entity                       entity id
  * @param {BigInt} before                       bigint before mask value
  * @param {BigInt} newValue                     bigint new mask value
@@ -205,7 +242,7 @@ function runExitHandlers(handlers, entity, before, newValue)
 
     for (let i = 0; i < handlers.length; i+=2)
     {
-        const m = BigInt(handlers[i])
+        const m = handlers[i]
         const fn = handlers[i + 1]
         if ((bNewValue & m) !== m && (bBefore & m) === m)
         {
@@ -227,12 +264,12 @@ function EntitySystem(rawConfig)
 
     /**
      *
-     * @type {Map<String,{propNames: Array.<String>, mask: number, arrayIndex: number}>}
+     * @type {Map<String,{propNames: Array.<String>, mask: number, arrayIndex: number, name: String}>}
      */
     this.components = components
     /**
      *
-     * @type {Map<String,{component:String, array: number, offset: number, sizeOf: number, componentMask: number}>}
+     * @type {Map<String,PropConfig>}
      */
     this.componentsByProp = componentsByProp
 
@@ -244,7 +281,7 @@ function EntitySystem(rawConfig)
     // entity table. Each row is one mask value per table plus a componentOffset per component
     this.e = new Float64Array(entityTableSizeOf * entityCount);
     // table state for the entity table
-    this.s = new TableState(this, "e", entityTableSizeOf, 0)
+    this.s = new TableState(this, "e", entityTableSizeOf, [], 0)
 
     // component tables
     this.c0 = null; this.c1 = null; this.c2 = null; this.c3 = null; this.c4 = null;
@@ -269,6 +306,7 @@ function EntitySystem(rawConfig)
         let mask = i === 0 ?  2n : 1n
 
         let combined = 0n
+        let propNamesForRow = []
         components.forEach( componentName => {
 
             const entry = this.components.get(componentName)
@@ -285,6 +323,8 @@ function EntitySystem(rawConfig)
                 cfg.array = i
                 cfg.offset = offset++
 
+                propNamesForRow.push(name)
+
                 combined |= mask
             }
             mask <<= 1n
@@ -297,7 +337,7 @@ function EntitySystem(rawConfig)
             //console.log("Creating array #"+ arrayIndex + " for ", components.join(", "), ": sizeOf =", offset, ", size = ", size, " => ", arrayLen)
 
             const array = new Float64Array(arrayLen)
-            const tableState = new TableState(this, TABLE_NAMES[i], offset, combined)
+            const tableState = new TableState(this, TABLE_NAMES[i], offset, components, combined)
             this[TABLE_NAMES[i]] = array
             this[TABLE_STATE_NAMES[i]] = tableState
         }
@@ -318,18 +358,32 @@ function EntitySystem(rawConfig)
  * @param {Object } [template]      Optional prop template. All implicitly referenced components will be added to
  *                                  the entity and the values we set as its props
  *
+ * @param {Number}  id              optional id suggestion.
  * @return {number} entity id
  */
-EntitySystem.prototype.newEntity = function (template)
+EntitySystem.prototype.newEntity = function (template, id = null)
 {
     const { e: entityArray, s : entityTableState } = this
 
-    const id = entityTableState.insertRow();
+    let entityId
+    if (id !== null)
+    {
+        if (this.exists(id))
+        {
+            throw new Error("Entity with id = " + id + " already exists")
+        }
+
+        entityId = entityTableState.insertRow(id)
+    }
+    else
+    {
+        entityId = entityTableState.insertRow()
+    }
 
     // mark all component offsets as having no component
     const { sizeOf } = entityTableState
 
-    let offset = id * sizeOf
+    let offset = entityId * sizeOf
     // zero masks
     for (let i = 0; i < this.maskSize; i++)
     {
@@ -343,9 +397,9 @@ EntitySystem.prototype.newEntity = function (template)
 
     if (template)
     {
-        this.addComponents(id, template)
+        this.addComponents(entityId, template)
     }
-    return id
+    return entityId
 }
 
 /**
@@ -608,8 +662,28 @@ EntitySystem.prototype.addComponents = function addComponents(entity, template)
     {
         if (template.hasOwnProperty(name))
         {
-            const { array, offset, sizeOf, componentMask } = this.getPropConfig(name)
             const v = template[name]
+
+            if (name === "_")
+            {
+                if (Array.isArray(v))
+                {
+                    v.forEach(c => this.addComponent(entity, c) )
+                    continue
+                }
+                else
+                {
+                    throw new Error("The special prop _ must contain an Array of component names to add to the entity")
+                }
+            }
+
+            if (name === "_id")
+            {
+                // ignore _id in template
+                continue
+            }
+
+            const { array, offset, sizeOf, componentMask } = this.getPropConfig(name)
 
             let componentRow = arrayRows.get(array)
             if (componentRow === undefined)
@@ -656,10 +730,11 @@ EntitySystem.prototype.addComponents = function addComponents(entity, template)
  * @typedef PropConfig
  * @type {object}
  * @property {String} component         component name the prop belongs to
+ * @property {String} prop              name the of the prop
  * @property {number} array             array the prop is stored in
  * @property {number} offset            row offset of the prop
  * @property {number} sizeOf            size of the corresponding array rows
- * @property {number} componentMask     component mask of the corresponding component
+ * @property {BigInt} componentMask     component mask of the corresponding component
  */
 
 /**
@@ -721,21 +796,143 @@ EntitySystem.prototype.setValue = function setValue(entity, name, value)
     this[TABLE_NAMES[array]][componentOffset + offset] = value
 }
 
+/**
+ * Registers a callback that gets called whenever an entity enters the combination of components given.
+ * The last component missing being added triggers the event.
+ *
+ * @param {Number} mask     component mask
+ * @param {function} fn     callback
+ *
+ * @return {function} cleanup function to remove the callback
+ */
 EntitySystem.prototype.onEnter = function onEnter(mask, fn)
 {
-    this.entryHandlers.push(mask, fn)
+    this.entryHandlers.push(BigInt(mask), fn)
     return () => {
         this.entryHandlers = removeHandler(this.entryHandlers, fn)
     }
 
 }
 
+/**
+ * Registers a callback that gets called whenever an entity exits the combination of components given.
+ * The first component being removed triggers the event.
+ *
+ * @param {Number} mask     component mask
+ * @param {function} fn     callback
+ *
+ * @return {function} cleanup function to remove the callback
+ */
 EntitySystem.prototype.onExit = function onExit(mask, fn)
 {
-    this.exitHandlers.push(mask, fn)
+    this.exitHandlers.push(BigInt(mask), fn)
     return () => {
         this.exitHandlers = removeHandler(this.exitHandlers, fn)
     }
+}
+
+/**
+ * Returns an JSON object export for the current state of the entity system.
+ *
+ * @param {Array.<BigInt>} [masks]   array of BigInt masks to filter to export. Must be one value per table.
+ *
+ * @return {EntitySystemJSONExport} JSON object hierarchy
+ */
+EntitySystem.prototype.toJSON = function toJSON(masks)
+{
+    const { e: entityArray, s: entityTableState, maskSize } = this
+
+    const entities = []
+
+    const { rowCounter, sizeOf } = entityTableState;
+
+    if (sizeOf !== maskSize * 2)
+    {
+        throw new Error("Illegal State: sizeOf of entity table must be twice the mask size")
+    }
+    
+    for (let i = 0; i < rowCounter; i++)
+    {
+        let entity = { _id: i }
+
+        const rowOffset = i * sizeOf
+        if (this.exists(i))
+        {
+            let containsData = false;
+
+            let tags = []
+            for (let cfg of this.components.values())
+            {
+                const { name, propNames, mask : componentMask, arrayIndex } = cfg
+
+                if (!propNames.length)
+                {
+                    const currMask = BigInt(entityArray[rowOffset + arrayIndex])
+                    if ( (!masks || (masks[arrayIndex] & componentMask) === componentMask) && (currMask & componentMask) === componentMask)
+                    {
+                        tags.push(name)
+                    }
+                }
+            }
+
+            if (tags.length)
+            {
+                entity._ = tags
+                containsData = true
+            }
+
+            for (let cfg of this.componentsByProp.values())
+            {
+                const { componentMask, name, offset, array } = cfg;
+
+                const currMask = BigInt(entityArray[rowOffset + array])
+                if ( (!masks || (masks[array] & componentMask) === componentMask) && (currMask & componentMask) === componentMask)
+                {
+                    const columnRow = entityArray[maskSize + rowOffset + array]
+                    if (columnRow >= 0)
+                    {
+                        entity[name] = this[TABLE_NAMES[array]][columnRow + offset]
+                        containsData = true
+                    }
+                }
+            }
+
+            if (containsData)
+            {
+                entities.push(entity)
+            }
+        }
+    }
+
+    return {
+        type : "Entity Export (" + pkgJson.name + "@" + pkgJson.version + ")",
+        version : EXPORT_VERSION,
+        entities
+    }             
+}
+
+/**
+ * Creates a new entity system from the given JSON object graph
+ *
+ * @param {EntitySystemConfig} config   config
+ * @param {Object} json                 JSON object graph
+ *
+ * @return {EntitySystem} entity system containing the entities
+ */
+EntitySystem.fromJSON = function fromJSON(config, json)
+{
+    const sys = new EntitySystem(config)
+
+    const { entities } = json
+
+    // we reverse the entity array so the highest entity ids come first. This way we grow only once if we need to.
+    entities.reverse()
+
+    for (let i = 0; i < entities.length; i++)
+    {
+        sys.newEntity(entities[i], entities[i]._id)
+    }
+    return sys
 }
 
 // EntitySystem.TABLE_NAMES = TABLE_NAMES
