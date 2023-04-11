@@ -3,6 +3,13 @@
 The @fforw/entity package implements an experimental entity component system for JavaScript.
 It stores its entities and components in typed arrays for quick access. 
 
+## Requirements
+                                                                                   
+ * Requires a babel build chain (i.e. Babel standalone, Webpack and others)
+ * Requires [babel-plugin-macros](https://github.com/kentcdodds/babel-plugin-macros) as dependecy and a Babel configuration that activates macros (Can work without macro 
+   though that is not recommended)
+ * Browser with BigInt support
+
 ## Entity Macro
 
 The entity system comes with a babel macro that provides access to the typed arrays in
