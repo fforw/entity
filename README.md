@@ -6,8 +6,8 @@ It stores its entities and components in typed arrays for quick access.
 ## Entity Macro
 
 The entity system comes with a babel macro that provides access to the typed arrays in
-a user-friendly manner. The already quick access to the typed-array can be made slighly
-faster by moving most of the access logic into compile time
+a user-friendly manner. The already quick access to the typed-array is made slightly
+faster by moving most of the access logic into compile time.
 
 ### Example
 
@@ -24,7 +24,7 @@ faster by moving most of the access logic into compile time
 
 ```
 
-Also the variable *a* only contains a numerical entity id, the macro can provide normal 
+Also, the variable *a* only contains a numerical entity id, the macro can provide normal 
 member access to the component props of the entity. 
                                                   
 #### Technical details
@@ -60,6 +60,7 @@ other config location suported by the cosmicconfig used by babel macros e.g. *.b
             {
                 "entityMacro": {
                     "config": "test/test-macro-config.json",
+                    "entitySystemName" : "system",
                     "debug": false
                 }
             }
@@ -67,11 +68,20 @@ other config location suported by the cosmicconfig used by babel macros e.g. *.b
     ]
 }
 ```
- 
-The *config* option can be used to configure an alternate config location. The *debug* 
-option will make the macro 
+                                
+#### config option
+
+The *config* option can be used to configure an alternate config location. 
+
+#### entitySystemName option
+
+The entitySystemName changes the variable name the macro expects the entity system to be available as. 
+(Default is "entitySystem")
+
+#### debug option
+The *debug* option will make the macro 
              
-## Configuration
+## EntitySystem Configuration
 
 The entity system is defined by a static JSON configuration that defines all possible components
 and how to lay out the memory tables for them.
@@ -143,7 +153,7 @@ corresponding to the given props will be automatically added.
 
 ## forEach(tableIndex, mask, callback)
 
-Allows iteration over entities matching the given table index and mask
+Allows iteration over entities matching the given table index and mask.
 
 ```javascript
 const mask = entitySystem.mask(["Appearance", "Health"])
@@ -157,15 +167,14 @@ const entity = entitySystem.forEach(0, mask, entity => {
 
 ## has(entity, components)
 
-Returns true if the given entity has the given components. Components can give given
-as component names (from any table) or as an array of numeric mask values, one for each table.
+Returns true if the given entity has the given components. Components can be given as component names 
+(from any table) or as an array of numeric mask values, one for each table.
 
 
 ## exists(entity)
 
-Returns true if the given entity exists currently. Note that entity ids are recycled,
-so if you need permanent ids, you need to make that happen yourself. The entity id is 
-only constant and unique over the lifetime of the entity.
+Returns true if the given entity exists currently. Note that entity ids are recycled, so if you need permanent ids, 
+you need to make that happen yourself. The entity id is only constant and unique over the lifetime of the entity.
 
 ## removeEntity(entity)
 

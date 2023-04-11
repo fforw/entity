@@ -1,5 +1,6 @@
 {
     "entityMacro": {
+        "entitySystemName": "system",
         "config": "test/test-macro-config.json"
     }
 }

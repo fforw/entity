@@ -739,7 +739,7 @@ EntitySystem.prototype.onExit = function onExit(mask, fn)
     }
 }
 
-EntitySystem.TABLE_NAMES = TABLE_NAMES
-EntitySystem.TABLE_STATE_NAMES = TABLE_STATE_NAMES
+// EntitySystem.TABLE_NAMES = TABLE_NAMES
+// EntitySystem.TABLE_STATE_NAMES = TABLE_STATE_NAMES
 
 module.exports = EntitySystem

@@ -66,6 +66,7 @@ function getConfig(entitySystem, ref)
 
 function entityMacro({references,config, state}) {
 
+    const entitySystemName = config.entitySystemName || "entitySystem"
 
     const json = fs.readFileSync(
         path.join( state.file.opts.root, config && config.config ? config.config : "entity-config.json"),
@@ -113,7 +114,7 @@ function entityMacro({references,config, state}) {
                                 t.identifier(varNames[r.key]),
                                 t.memberExpression(
                                     t.memberExpression(
-                                        t.identifier("entitySystem"),
+                                        t.identifier(entitySystemName),
                                         t.identifier("e"),
                                         false
                                     ),
@@ -176,7 +177,7 @@ function entityMacro({references,config, state}) {
                                 t.identifier(varNames[key]),
                                 t.memberExpression(
                                     t.memberExpression(
-                                        t.identifier("entitySystem"),
+                                        t.identifier(entitySystemName),
                                         t.identifier("e"),
                                         false
                                     ),
@@ -201,7 +202,7 @@ function entityMacro({references,config, state}) {
                             t.variableDeclarator(
                                 t.identifier(varNames[arrayIndex]),
                                 t.memberExpression(
-                                    t.identifier("entitySystem"),
+                                    t.identifier(entitySystemName),
                                     t.identifier("c" + arrayIndex),
                                     false
                                 )
