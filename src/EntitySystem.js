@@ -1,4 +1,7 @@
 const MAX_ENTITY = 1024
+const EXPORT_VERSION = 1
+
+const pkgJson = require("../package.json")
 
 /**
  * Entity system configuration from the view point of a single prop name
@@ -21,7 +24,7 @@ const MAX_ENTITY = 1024
  *
  */
 
-function TableState(entitySystem, tableName, sizeOf, combinedMask)
+function TableState(entitySystem, tableName, sizeOf, components, combinedMask)
 {
     this.entitySystem = entitySystem
     this.tableName = tableName
@@ -29,6 +32,7 @@ function TableState(entitySystem, tableName, sizeOf, combinedMask)
     this.rowCounter = 0
     this.removeCounter = 0
     this.combinedMask = BigInt(combinedMask)
+    this.components = components
     this.isEntityTable = !combinedMask
 }
 
@@ -134,6 +138,17 @@ function loadConfig(raw)
             )
 
             propNames.forEach(name => {
+
+                if (typeof name !== "string" || !name.length)
+                {
+                    throw new Error("Invalid prop name: Must be a non-empty String")
+                }
+
+                if (name === "_" || name === "_id")
+                {
+                    throw new Error("Invalid prop name: _ and _id are reserved for internal purposes and cannot be used as column names")
+                }
+
                 const comp = componentsByProp.get(name)
                 if (comp)
                 {
@@ -244,7 +259,7 @@ function EntitySystem(rawConfig)
     // entity table. Each row is one mask value per table plus a componentOffset per component
     this.e = new Float64Array(entityTableSizeOf * entityCount);
     // table state for the entity table
-    this.s = new TableState(this, "e", entityTableSizeOf, 0)
+    this.s = new TableState(this, "e", entityTableSizeOf, [], 0)
 
     // component tables
     this.c0 = null; this.c1 = null; this.c2 = null; this.c3 = null; this.c4 = null;
@@ -269,6 +284,7 @@ function EntitySystem(rawConfig)
         let mask = i === 0 ?  2n : 1n
 
         let combined = 0n
+        let propNamesForRow = []
         components.forEach( componentName => {
 
             const entry = this.components.get(componentName)
@@ -285,6 +301,8 @@ function EntitySystem(rawConfig)
                 cfg.array = i
                 cfg.offset = offset++
 
+                propNamesForRow.push(name)
+
                 combined |= mask
             }
             mask <<= 1n
@@ -297,7 +315,7 @@ function EntitySystem(rawConfig)
             //console.log("Creating array #"+ arrayIndex + " for ", components.join(", "), ": sizeOf =", offset, ", size = ", size, " => ", arrayLen)
 
             const array = new Float64Array(arrayLen)
-            const tableState = new TableState(this, TABLE_NAMES[i], offset, combined)
+            const tableState = new TableState(this, TABLE_NAMES[i], offset, components, combined)
             this[TABLE_NAMES[i]] = array
             this[TABLE_STATE_NAMES[i]] = tableState
         }
@@ -609,8 +627,28 @@ EntitySystem.prototype.addComponents = function addComponents(entity, template)
     {
         if (template.hasOwnProperty(name))
         {
-            const { array, offset, sizeOf, componentMask } = this.getPropConfig(name)
             const v = template[name]
+
+            if (name === "_")
+            {
+                if (Array.isArray(v))
+                {
+                    v.forEach(c => this.addComponent(entity, c) )
+                    continue
+                }
+                else
+                {
+                    throw new Error("The special prop _ must contain an Array of component names to add to the entity")
+                }
+            }
+
+            if (name === "_id")
+            {
+                // ignore _id in template
+                continue
+            }
+
+            const { array, offset, sizeOf, componentMask } = this.getPropConfig(name)
 
             let componentRow = arrayRows.get(array)
             if (componentRow === undefined)
@@ -737,6 +775,44 @@ EntitySystem.prototype.onExit = function onExit(mask, fn)
     return () => {
         this.exitHandlers = removeHandler(this.exitHandlers, fn)
     }
+}
+
+EntitySystem.prototype.toJSON = function toJSON(mask)
+{
+    const { e: entityArray, s: entityTableState, maskSize } = this
+
+    const entities = []
+
+
+    const { rowCounter, sizeOf } = entityTableState;
+
+    if (sizeOf !== maskSize * 2)
+    {
+        throw new Error("Illegal State: sizeOf of entity table must be twice the mask size")
+    }
+    
+    for (let i = 0; i < rowCounter; i++)
+    {
+        let entity = { _id: i }
+
+        const rowOffset = i * sizeOf
+        if (this.exists(i))
+        {
+            for (let j = 0; j < maskSize; j++)
+            {
+                const columnRow = entityArray[maskSize + rowOffset + j]
+
+
+            }
+        }
+    }
+
+
+    return {
+        type : "Entity Export (" + pkgJson.name + "@" + pkgJson.version + ")",
+        version : EXPORT_VERSION,
+        entities
+    }             
 }
 
 // EntitySystem.TABLE_NAMES = TABLE_NAMES
