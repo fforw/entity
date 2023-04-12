@@ -164,54 +164,66 @@ function entityMacro({references,config, state}) {
 
         ref.parentPath.get("arguments.0.body").traverse(ReplaceEntityPropReferences)
 
-        body.body.unshift(
-            t.variableDeclaration("let",
+        const componentRowDecls = Array.from(usedRows.keys(), key => {
 
-                [
-                    ... Array.from(usedRows.keys(), key => {
+            const { arrayIndex, entity, sizeOf }= usedRows.get(key)
 
-                        const { arrayIndex, entity, sizeOf }= usedRows.get(key)
-
-                        return (
-                            t.variableDeclarator(
-                                t.identifier(varNames[key]),
-                                t.memberExpression(
-                                    t.memberExpression(
-                                        t.identifier(entitySystemName),
-                                        t.identifier("e"),
-                                        false
-                                    ),
-                                    t.binaryExpression(
-                                        "+",
-                                        t.binaryExpression(
-                                            "*",
-                                            t.identifier(entity),
-                                            t.numericLiteral(entitySystem.s.sizeOf)
-                                        ),
-                                        t.numericLiteral(maskSize + arrayIndex),
-                                    ),
-                                    true
-                                )
-                            )
-                        )
-                    }),
-
-                    ... Array.from(usedArrays, arrayIndex => {
-
-                        return (
-                            t.variableDeclarator(
-                                t.identifier(varNames[arrayIndex]),
-                                t.memberExpression(
-                                    t.identifier(entitySystemName),
-                                    t.identifier("c" + arrayIndex),
-                                    false
-                                )
-                            )
-                        )
-                    })
-                ]
+            return (
+                t.variableDeclarator(
+                    t.identifier(varNames[key]),
+                    t.memberExpression(
+                        t.memberExpression(
+                            t.identifier(entitySystemName),
+                            t.identifier("e"),
+                            false
+                        ),
+                        t.binaryExpression(
+                            "+",
+                            t.binaryExpression(
+                                "*",
+                                t.identifier(entity),
+                                t.numericLiteral(entitySystem.s.sizeOf)
+                            ),
+                            t.numericLiteral(maskSize + arrayIndex),
+                        ),
+                        true
+                    )
+                )
             )
-        )
+        })
+        const arrayDecls = Array.from(usedArrays, arrayIndex => {
+
+            return (
+                t.variableDeclarator(
+                    t.identifier(varNames[arrayIndex]),
+                    t.memberExpression(
+                        t.identifier(entitySystemName),
+                        t.identifier("c" + arrayIndex),
+                        false
+                    )
+                )
+            )
+        })
+
+        let decls = []
+        if (componentRowDecls.length)
+        {
+            decls = decls.concat(componentRowDecls)
+        }
+        if (arrayDecls.length)
+        {
+            decls = decls.concat(arrayDecls)
+        }
+
+        if (decls.length)
+        {
+            body.body.unshift(
+                t.variableDeclaration("let",
+                    decls
+                )
+            )
+        }
+
         ref.parentPath.replaceWithMultiple(body.body)
 
         if (config.debug)
