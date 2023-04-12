@@ -12,7 +12,7 @@ const testConfig = JSON.parse(fs.readFileSync(path.join(__dirname, "test-macro-c
 
 describe("Entity System", () => {
 	it("creates entities from templates", () => {
-		const entitySystem = new EntitySystem({
+		const system = new EntitySystem({
 				"Components": {
 					"Appearance": ["x", "y", "z"],
 					"Health": ["health"],
@@ -28,50 +28,50 @@ describe("Entity System", () => {
 			}
 		)
 
-		const dummy = entitySystem.newEntity({
+		const dummy = system.newEntity({
 			x: 1, y: 2, z: 3,
 			health: 4
 		})
-		entitySystem.addComponent(dummy, "Tag")
+		system.addComponent(dummy, "Tag")
 
-		assert(entitySystem.e[0] === 15)	// "exists" bit + 3 components
-		assert(entitySystem.e[1] === 0)
-		assert(entitySystem.e[2] === 0)
+		assert(system.e[0] === 15)	// "exists" bit + 3 components
+		assert(system.e[1] === 0)
+		assert(system.e[2] === 0)
 
-		const id = entitySystem.newEntity({
+		const id = system.newEntity({
 			x: 10, y: 20, z: 30,
 			health: 100
 		})
 
-		const entityRow = id * entitySystem.s.sizeOf
+		const entityRow = id * system.s.sizeOf
 
 		assert(id === 1)
-		assert(entitySystem.has(id, ["Appearance"]) === true)
-		assert(entitySystem.has(id, ["Health"]) === true)
-		assert(entitySystem.has(id, ["Appearance", "Health"]) === true)
-		assert(entitySystem.has(id, ["Tag"]) === false)
+		assert(system.has(id, ["Appearance"]) === true)
+		assert(system.has(id, ["Health"]) === true)
+		assert(system.has(id, ["Appearance", "Health"]) === true)
+		assert(system.has(id, ["Tag"]) === false)
 
-		assert(entitySystem.s.sizeOf === 2)	// 1 mask + 1 offset
-		assert(entitySystem.e[entityRow    ] === 7)	// "exists" bit + first two components
-		assert(entitySystem.e[entityRow + 1] === 5)
+		assert(system.s.sizeOf === 2)	// 1 mask + 1 offset
+		assert(system.e[entityRow    ] === 7)	// "exists" bit + first two components
+		assert(system.e[entityRow + 1] === 5)
 
 		const componentRow = 5
 
-		assert(entitySystem.c0[componentRow    ] === id)
-		assert(entitySystem.c0[componentRow + 1] === 10)
-		assert(entitySystem.c0[componentRow + 2] === 20)
-		assert(entitySystem.c0[componentRow + 3] === 30)
-		assert(entitySystem.c0[componentRow + 4] === 100)
+		assert(system.c0[componentRow    ] === id)
+		assert(system.c0[componentRow + 1] === 10)
+		assert(system.c0[componentRow + 2] === 20)
+		assert(system.c0[componentRow + 3] === 30)
+		assert(system.c0[componentRow + 4] === 100)
 
-		const id2 = entitySystem.newEntity({
+		const id2 = system.newEntity({
 			health: 100
 		})
-		assert(entitySystem.has(id2, ["Health"]) === true)
-		assert(entitySystem.has(id2, ["Appearance"]) === false)
+		assert(system.has(id2, ["Health"]) === true)
+		assert(system.has(id2, ["Appearance"]) === false)
 	})
 
 	it("adds and removes components from entities", () => {
-		const entitySystem = new EntitySystem({
+		const system = new EntitySystem({
 				"Components": {
 					"Appearance": ["x", "y", "z"],
 					"Health": ["health"],
@@ -91,74 +91,74 @@ describe("Entity System", () => {
 			}
 		)
 
-		const dummy = entitySystem.newEntity({
+		const dummy = system.newEntity({
 			x: 1, y: 2, z: 3,
 			health: 4
 		})
-		assert(entitySystem.e[0] === 7) // "exists" + Appearance + Health
-		assert(entitySystem.e[2] === 0)
+		assert(system.e[0] === 7) // "exists" + Appearance + Health
+		assert(system.e[2] === 0)
 
-		const id = entitySystem.newEntity({
+		const id = system.newEntity({
 			x: 10, y: 20, z: 30,
 			health: 100
 		})
 
-		const idRow = id * entitySystem.s.sizeOf
+		const idRow = id * system.s.sizeOf
 
 		const columnRow = 5
 
-		assert(entitySystem.e[idRow    ] === 7) // "exists" + Appearance + Health
-		assert(entitySystem.e[idRow + 1] === 0) 
-		assert(entitySystem.e[idRow + 2] === columnRow)
-		assert(entitySystem.s0.rowCounter === 2)
-		assert(entitySystem.c0[columnRow    ] === id)
-		assert(entitySystem.c0[columnRow + 1] === 10)
-		assert(entitySystem.c0[columnRow + 2] === 20)
-		assert(entitySystem.c0[columnRow + 3] === 30)
-		assert(entitySystem.c0[columnRow + 4] === 100)
+		assert(system.e[idRow    ] === 7) // "exists" + Appearance + Health
+		assert(system.e[idRow + 1] === 0)
+		assert(system.e[idRow + 2] === columnRow)
+		assert(system.s0.rowCounter === 2)
+		assert(system.c0[columnRow    ] === id)
+		assert(system.c0[columnRow + 1] === 10)
+		assert(system.c0[columnRow + 2] === 20)
+		assert(system.c0[columnRow + 3] === 30)
+		assert(system.c0[columnRow + 4] === 100)
 
-		entitySystem.removeComponent(id, "Health")
-		assert(entitySystem.has(id, ["Health"]) === false)
-		assert(entitySystem.e[idRow    ] === 3) // "exists" + Appearance
-		assert(entitySystem.e[idRow + 2] === columnRow)
-		assert(entitySystem.c0[columnRow] === id)
-		assert(entitySystem.c0[columnRow + 4] === 100) // unchanged
-		assert(entitySystem.s0.removeCounter === 0)
+		system.removeComponent(id, "Health")
+		assert(system.has(id, ["Health"]) === false)
+		assert(system.e[idRow    ] === 3) // "exists" + Appearance
+		assert(system.e[idRow + 2] === columnRow)
+		assert(system.c0[columnRow] === id)
+		assert(system.c0[columnRow + 4] === 100) // unchanged
+		assert(system.s0.removeCounter === 0)
 
-		entitySystem.addComponents(id, { health: 200 })
-		assert(entitySystem.e[idRow] === 7) // "exists" + Appearance + Health
-		assert(entitySystem.e[idRow + 2] === columnRow)
-		assert(entitySystem.c0[columnRow] === id)
-		assert(entitySystem.c0[columnRow + 4] === 200)
+		system.addComponents(id, { health: 200 })
+		assert(system.e[idRow] === 7) // "exists" + Appearance + Health
+		assert(system.e[idRow + 2] === columnRow)
+		assert(system.c0[columnRow] === id)
+		assert(system.c0[columnRow + 4] === 200)
 
-		entitySystem.removeComponent(id, "Appearance")
- 		assert(entitySystem.e[idRow] === 5) // "exists" + Health
-		assert(entitySystem.e[idRow + 2] === columnRow)
-		assert(entitySystem.s0.removeCounter === 0)
-		entitySystem.removeComponent(id, "Health")
-		assert(entitySystem.e[idRow    ] === 1) // "exists"
-		assert(entitySystem.e[idRow + 2] === -1)
-		assert(entitySystem.s0.removeCounter === 1)
+		system.removeComponent(id, "Appearance")
+ 		assert(system.e[idRow] === 5) // "exists" + Health
+		assert(system.e[idRow + 2] === columnRow)
+		assert(system.s0.removeCounter === 0)
+		system.removeComponent(id, "Health")
+		assert(system.e[idRow    ] === 1) // "exists"
+		assert(system.e[idRow + 2] === -1)
+		assert(system.s0.removeCounter === 1)
 
-		entitySystem.addComponents(id, { x: 20, y: 30, z: 40 })
-		assert(entitySystem.e[idRow    ] === 3) // "exists" + Appearance
-		assert(entitySystem.e[idRow + 2] === columnRow) // recycled
-		assert(entitySystem.e[idRow + 3] === -1)
-		assert(entitySystem.s0.removeCounter === 0)
+		system.addComponents(id, { x: 20, y: 30, z: 40 })
+		assert(system.e[idRow    ] === 3) // "exists" + Appearance
+		assert(system.e[idRow + 2] === columnRow) // recycled
+		assert(system.e[idRow + 3] === -1)
+		assert(system.s0.removeCounter === 0)
 
-		entitySystem.addComponent(id, "Tag")
-		assert(entitySystem.has(id, ["Tag"]) === true)
-		assert(entitySystem.e[idRow    ] === 3) // "exists" + Appearance
-		assert(entitySystem.e[idRow + 1] === 1) // Tag
-		entitySystem.removeComponent(id, "Tag")
-		assert(entitySystem.e[idRow    ] === 3) // "exists" + Appearance
-		assert(entitySystem.e[idRow + 1] === 0) // ---
-		assert(entitySystem.has(id, ["Tag"]) === false)
+		system.addComponent(id, "Tag")
+		assert(system.has(id, ["Tag"]) === true)
+		assert(system.e[idRow    ] === 3) // "exists" + Appearance
+		assert(system.e[idRow + 1] === 1) // Tag
+		system.removeComponent(id, "Tag")
+		assert(system.e[idRow    ] === 3) // "exists" + Appearance
+		assert(system.e[idRow + 1] === 0) // ---
+		assert(system.has(id, ["Tag"]) === false)
 	})
 
 	it("finds entities with components", () => {
 
-		const entitySystem = new EntitySystem({
+		const system = new EntitySystem({
 				"Components" : {
 					"Appearance" : [ "x", "y", "z"],
 					"Health" : [ "health" ],
@@ -174,26 +174,26 @@ describe("Entity System", () => {
 			}
 		)
 
-		const id = entitySystem.newEntity({
+		const id = system.newEntity({
 			x: 10, y: 20, z: 30,
 			health: 100
 		})
 
-		const id2 = entitySystem.newEntity({
+		const id2 = system.newEntity({
 			health: 100
 		})
 
-		const findMask = entitySystem.mask(["Appearance", "Health"])
-		const findMask2 = entitySystem.mask(["Health"])
+		const findMask = system.mask(["Appearance", "Health"])
+		const findMask2 = system.mask(["Health"])
 		{
 			const spy = sinon.spy()
-			entitySystem.forEach(0, findMask, spy)
+			system.forEach(0, findMask, spy)
 			assert(spy.callCount === 1)
 			assert(spy.getCall(0).args[0] === id);
 		}
 		{
 			const spy = sinon.spy()
-			entitySystem.forEach(0, findMask2, spy)
+			system.forEach(0, findMask2, spy)
 			assert(spy.callCount === 2)
 			assert(spy.getCall(0).args[0] === id);
 			assert(spy.getCall(1).args[0] === id2);
@@ -201,7 +201,7 @@ describe("Entity System", () => {
 	});
 
 	it("removes entities", () => {
-        const entitySystem = new EntitySystem({
+        const system = new EntitySystem({
             "Components": {
                 "Appearance": ["x", "y", "z"],
                 "Health": ["health"],
@@ -214,25 +214,25 @@ describe("Entity System", () => {
                 }
             ]
         })
-        const id = entitySystem.newEntity({
+        const id = system.newEntity({
             health: 100
         })
-        const id2 = entitySystem.newEntity({
-            health: 100
-        })
-
-        assert(entitySystem.exists(id))
-        assert(entitySystem.exists(id2))
-
-        entitySystem.removeEntity(id)
-
-        assert(!entitySystem.exists(id))
-        const id3 = entitySystem.newEntity({
+        const id2 = system.newEntity({
             health: 100
         })
 
+        assert(system.exists(id))
+        assert(system.exists(id2))
 
-        assert(entitySystem.exists(id3))
+        system.removeEntity(id)
+
+        assert(!system.exists(id))
+        const id3 = system.newEntity({
+            health: 100
+        })
+
+
+        assert(system.exists(id3))
 		// recycled id
         assert(id === id3)
 
@@ -243,17 +243,17 @@ describe("Entity System", () => {
 
 		// for the entity macro test, we actually set the system-wide config to a test-config. To actually run the code
 		// in the test it is easiest to keep using the project wide config and adjust this test
-		const entitySystem = new EntitySystem(testConfig)
+		const system = new EntitySystem(testConfig)
 
-		let id = entitySystem.newEntity({
+		let id = system.newEntity({
 			x: 10, y: 20, z: 30,
 			health: 100
 		})
-		const id2 = entitySystem.newEntity({
+		const id2 = system.newEntity({
 			x: 10, y: 20, z: 30,
 			health: 75
 		})
-		const id3 = entitySystem.newEntity({
+		const id3 = system.newEntity({
 			x: 10, y: 20, z: 30,
 			health: 66
 		})
@@ -290,23 +290,23 @@ describe("Entity System", () => {
 
 		})
 
-		assert(entitySystem.e[0] === 7) // "exists" + Appearance + Health
-		assert(entitySystem.e[1] === 0)
-		assert(entitySystem.c0[0] === orig)
-		assert(entitySystem.c0[2] === 50)
-		assert(entitySystem.c0[4] === 50)
+		assert(system.e[0] === 7) // "exists" + Appearance + Health
+		assert(system.e[1] === 0)
+		assert(system.c0[0] === orig)
+		assert(system.c0[2] === 50)
+		assert(system.c0[4] === 50)
 
 	})
 
 	it("gets and sets entity prop values without macro", () => {
 		// for the entity macro test, we actually set the system-wide config to a test-config. To actually run the code
 		// in the test it is easiest to keep using the project wide config and adjust this test
-		const entitySystem = new EntitySystem(testConfig)
+		const system = new EntitySystem(testConfig)
 
-		const id = entitySystem.newEntity({
+		const id = system.newEntity({
 			health: 100
 		})
-		const id2 = entitySystem.newEntity({
+		const id2 = system.newEntity({
 			health: 100
 		})
 
@@ -315,12 +315,12 @@ describe("Entity System", () => {
 		// 	assert(id2.health === 100)
 		// })
 
-		assert(entitySystem.getValue(id, "health") === 100)
-		assert(entitySystem.getValue(id2, "health") === 100)
+		assert(system.getValue(id, "health") === 100)
+		assert(system.getValue(id2, "health") === 100)
 
-		entitySystem.setValue(id, "health",200)
+		system.setValue(id, "health",200)
 
-		assert(entitySystem.getValue(id, "health") === 200)
+		assert(system.getValue(id, "health") === 200)
 		// $entity(id => {
 		// 	assert(id.health === 200)
 		// })
@@ -328,19 +328,19 @@ describe("Entity System", () => {
 
 	it("tracks components entering and exiting component combinations", () => {
 
-		const entitySystem = new EntitySystem(testConfig)
+		const system = new EntitySystem(testConfig)
 
 		const enterHealthSpy = sinon.spy()
-		const cleanup = entitySystem.onEnter(entitySystem.mask("Health"), enterHealthSpy)
+		const cleanup = system.onEnter(system.mask("Health"), enterHealthSpy)
 
 		{
-			const id = entitySystem.newEntity({
+			const id = system.newEntity({
 				health: 100
 			})
-			const id2 = entitySystem.newEntity({
+			const id2 = system.newEntity({
 				health: 100
 			})
-			const id3 = entitySystem.newEntity({
+			const id3 = system.newEntity({
 				x: 100
 			})
 
@@ -354,53 +354,53 @@ describe("Entity System", () => {
 
 		const enterAppearanceAndHealthSpy = sinon.spy()
 		const exitAppearanceAndHealthSpy = sinon.spy()
-		const cleanup2 = entitySystem.onEnter(entitySystem.mask(["Appearance", "Health"]), enterAppearanceAndHealthSpy)
-		const cleanup3 = entitySystem.onExit(entitySystem.mask(["Appearance", "Health"]), exitAppearanceAndHealthSpy)
+		const cleanup2 = system.onEnter(system.mask(["Appearance", "Health"]), enterAppearanceAndHealthSpy)
+		const cleanup3 = system.onExit(system.mask(["Appearance", "Health"]), exitAppearanceAndHealthSpy)
 
 		{
-			const id = entitySystem.newEntity({
+			const id = system.newEntity({
 				x: 100,
 				health: 100
 			})
-			const id2 = entitySystem.newEntity({
+			const id2 = system.newEntity({
 				x: 100
 			})
-			const id3 = entitySystem.newEntity()
-			entitySystem.addComponent(id3, "Appearance")
-			entitySystem.addComponent(id3, "Health")
+			const id3 = system.newEntity()
+			system.addComponent(id3, "Appearance")
+			system.addComponent(id3, "Health")
 
 			assert(enterAppearanceAndHealthSpy.callCount === 2)
 			assert(enterAppearanceAndHealthSpy.getCall(0).args[0] === id)
 			assert(enterAppearanceAndHealthSpy.getCall(1).args[0] === id3)
 
-			entitySystem.removeComponent(id, "Appearance")
+			system.removeComponent(id, "Appearance")
 
-			entitySystem.removeComponent(id3, "Appearance")
-			entitySystem.removeComponent(id3, "Health")
+			system.removeComponent(id3, "Appearance")
+			system.removeComponent(id3, "Health")
 
-			entitySystem.removeComponent(id, "Health")	// triggers callback for id
-			entitySystem.removeComponent(id2, "Appearance") // no callback called. id2 was never in both states.
+			system.removeComponent(id, "Health")	// triggers callback for id
+			system.removeComponent(id2, "Appearance") // no callback called. id2 was never in both states.
 
 			assert(exitAppearanceAndHealthSpy.callCount === 2)
 			assert(exitAppearanceAndHealthSpy.getCall(0).args[0] === id)
 			assert(exitAppearanceAndHealthSpy.getCall(1).args[0] === id3)
 		}
 
-		assert(entitySystem.entryHandlers.length === 4)
-		assert(entitySystem.exitHandlers.length === 2)
+		assert(system.entryHandlers.length === 4)
+		assert(system.exitHandlers.length === 2)
 
 		cleanup()
 		cleanup2()
 		cleanup3()
 
-		assert(entitySystem.entryHandlers.length === 0)
-		assert(entitySystem.exitHandlers.length === 0)
+		assert(system.entryHandlers.length === 0)
+		assert(system.exitHandlers.length === 0)
 
 	})
 
 	it("supports 53 bit masks", () => {
 
-		const entitySystem = new EntitySystem({
+		const system = new EntitySystem({
 				"Components": {
 					"Appearance": ["x", "y", "z"],
 					"Health": ["health"],
@@ -458,23 +458,23 @@ describe("Entity System", () => {
 			}
 		)
 
-		const mask = entitySystem.mask(["Tag49"])
+		const mask = system.mask(["Tag49"])
 		const enterSpy = sinon.spy()
 		const exitSpy = sinon.spy()
-		entitySystem.onEnter(mask, enterSpy)
-		entitySystem.onExit(mask, exitSpy)
+		system.onEnter(mask, enterSpy)
+		system.onExit(mask, exitSpy)
 
-		const entity = entitySystem.newEntity()
-		assert(entitySystem.exists(entity))
-		assert(entitySystem.e[0] === 1)
+		const entity = system.newEntity()
+		assert(system.exists(entity))
+		assert(system.e[0] === 1)
 
 
-		entitySystem.addComponent(entity, "Tag49")
+		system.addComponent(entity, "Tag49")
 
-		assert( entitySystem.has(entity, ["Tag49"]))
-		assert(entitySystem.e[0] === Math.pow(2,52) + 1)
-		entitySystem.removeComponent(entity, "Tag49")
-		assert( !entitySystem.has(entity, ["Tag49"]))
+		assert( system.has(entity, ["Tag49"]))
+		assert(system.e[0] === Math.pow(2,52) + 1)
+		system.removeComponent(entity, "Tag49")
+		assert( !system.has(entity, ["Tag49"]))
 
 		assert(enterSpy.callCount === 1)
 		assert(exitSpy.callCount === 1)
