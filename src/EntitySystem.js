@@ -566,8 +566,9 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
     const newValue = before & ~mask
     entityArray[entityRow + arrayIndex] = Number(newValue)
 
-    const array = this[TABLE_NAMES[arrayIndex]]
+    runExitHandlers(this.exitHandlers, entity, before, newValue)
 
+    const array = this[TABLE_NAMES[arrayIndex]]
     if (array)
     {
         const ts = this[TABLE_STATE_NAMES[arrayIndex]]
@@ -585,8 +586,6 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
         }
     }
 
-
-    runExitHandlers(this.exitHandlers, entity, before, newValue)
 }
 
 /**
