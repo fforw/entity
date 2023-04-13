@@ -424,7 +424,7 @@ EntitySystem.prototype.findComponentByProp = function(name)
  * Returns the bitmask for the given components
  * @param {String|Array.<String>} components   component name or array of components which must all belong to the same table
  * 
- * @return {number} bit mask
+ * @return {BigInt} bit mask
  */
 EntitySystem.prototype.mask = function(components)
 {
@@ -449,7 +449,7 @@ EntitySystem.prototype.mask = function(components)
         mask |= m
     }
 
-    return Number(mask)
+    return mask
 }
 /**
  * Returns the property name of the entity system that stores the data for the given component
@@ -806,8 +806,8 @@ EntitySystem.prototype.setValue = function setValue(entity, name, value)
  * Registers a callback that gets called whenever an entity enters the combination of components given.
  * The last component missing being added triggers the event.
  *
- * @param {Number} mask     component mask
- * @param {function} fn     callback
+ * @param {Number|BigInt} mask      component mask
+ * @param {function} fn             callback
  *
  * @return {function} cleanup function to remove the callback
  */
@@ -824,8 +824,8 @@ EntitySystem.prototype.onEnter = function onEnter(mask, fn)
  * Registers a callback that gets called whenever an entity exits the combination of components given.
  * The first component being removed triggers the event.
  *
- * @param {Number} mask     component mask
- * @param {function} fn     callback
+ * @param {Number|BigInt} mask      component mask
+ * @param {function} fn             callback
  *
  * @return {function} cleanup function to remove the callback
  */
