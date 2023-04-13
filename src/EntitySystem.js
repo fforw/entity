@@ -48,6 +48,7 @@ function TableState(entitySystem, tableName, sizeOf, components, combinedMask)
     this.combinedMask = BigInt(combinedMask)
     this.components = components
     this.isEntityTable = !combinedMask
+    this.skipOnRemove = Infinity
 }
 
 TableState.prototype.insertRow = function insertRow(at = null)
@@ -67,7 +68,7 @@ TableState.prototype.insertRow = function insertRow(at = null)
     }
     else if (this.removeCounter > 0)
     {
-        for (let i = 0; i < this.rowCounter; i++)
+        for (let i = this.skipOnRemove; i < this.rowCounter; i++)
         {
             const offset = i * sizeOf
             const empty = isEntityTable ? (array[offset] & 1) === 0 : array[offset] < 0
@@ -75,6 +76,10 @@ TableState.prototype.insertRow = function insertRow(at = null)
             {
                 id = i;
                 this.removeCounter--
+                if (this.removeCounter === 0)
+                {
+                    this.skipOnRemove = Infinity
+                }
                 break;
             }
         }
@@ -120,6 +125,7 @@ TableState.prototype.removeRow = function removeRow(row)
     }
 
     this.removeCounter++
+    this.skipOnRemove = Math.min(this.skipOnRemove, row)
 }
 
 
