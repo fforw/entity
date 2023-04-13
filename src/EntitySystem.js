@@ -362,7 +362,7 @@ function EntitySystem(rawConfig)
  * a template object. All implicitly referenced components will be added to the entity and the values we set as its props
  *
  * @param {Object } [template]      Optional prop template. All implicitly referenced components will be added to
- *                                  the entity and the values we set as its props
+ *                                  the entity and the values we set as its props.
  *
  * @param {Number}  id              optional id suggestion.
  * @return {number} entity id
@@ -653,7 +653,8 @@ EntitySystem.prototype.removeComponent = function removeComponent(entity, name)
  * adds all the components. You can also set properties of components the entity already has.
  *
  * @param {number} entity       entity id
- * @param template              template with new properties implying new components
+ * @param template              template with new properties implying new components. A property named "_" can be used to
+ *                              define an array of tag components to add to the entity. "_id" properties will be ignored.
  */
 EntitySystem.prototype.addComponents = function addComponents(entity, template)
 {
