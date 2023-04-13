@@ -937,13 +937,31 @@ EntitySystem.fromJSON = function fromJSON(config, json)
 
     const { entities } = json
 
-    // we reverse the entity array so the highest entity ids come first. This way we grow only once if we need to.
-    entities.reverse()
+    // sort entities so the highest entity ids come first. This way we grow only once if we need to.
+    entities.sort((a,b) => b._id - a._id)
 
     for (let i = 0; i < entities.length; i++)
     {
-        sys.newEntity(entities[i], entities[i]._id)
+        const template = entities[i]
+        sys.newEntity(template, template._id)
     }
+
+    const { e: entityArray, s: entityTableState } = sys
+
+    const { sizeOf } = entityTableState
+
+    // set removeCounter to the number of non-existing entities created by gaps in the imported entity ids
+    let removeCounter = 0
+    for (let i = 0; i < entityArray.length; i += sizeOf)
+    {
+        const exists = !!(entityArray[i] & 1)
+        if (!exists)
+        {
+            removeCounter++;
+        }
+    }
+    entityTableState.removeCounter = removeCounter
+
     return sys
 }
 

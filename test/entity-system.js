@@ -493,7 +493,7 @@ describe("Entity System", () => {
 
 	})
 
-	it("exports its state as JSON object graph", () => {
+	it("exports and imports JSON object graphs", () => {
 
 		const config = {
 			"Components": {
