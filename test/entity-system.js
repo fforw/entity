@@ -214,7 +214,12 @@ describe("Entity System", () => {
                 }
             ]
         })
+
+		system.newEntity()
+		system.newEntity()
+
         const id = system.newEntity({
+			x:0,
             health: 100
         })
         const id2 = system.newEntity({
@@ -224,10 +229,18 @@ describe("Entity System", () => {
         assert(system.exists(id))
         assert(system.exists(id2))
 
+		const removeSpy = sinon.spy()
+		system.onExit(system.mask(["Appearance", "Health"]), removeSpy)
+
         system.removeEntity(id)
 
         assert(!system.exists(id))
-        const id3 = system.newEntity({
+
+		assert(removeSpy.callCount === 1)
+		assert(removeSpy.getCall(0).args[0] === id);
+
+
+		const id3 = system.newEntity({
             health: 100
         })
 

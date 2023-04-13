@@ -566,12 +566,17 @@ EntitySystem.prototype.removeEntity = function removeEntity(entity)
     const offset = entity * entityTableState.sizeOf
     for (let i = 0; i < maskSize; i++)
     {
+        const mask = BigInt(entityArray[offset + i])
         const rowOffset = entityArray[offset + maskSize + i]
         entityArray[offset + maskSize + i] = -1
+
+        runExitHandlers(this.exitHandlers, entity, mask, 0n);
+
         if (rowOffset >= 0)
         {
             const array = this[TABLE_NAMES[i]]
             const ts = this[TABLE_STATE_NAMES[i]]
+
             array[rowOffset] = -1
             ts.removeRow(rowOffset / ts.sizeOf)
         }
