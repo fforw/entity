@@ -270,7 +270,7 @@ function EntitySystem(rawConfig)
 
     /**
      *
-     * @type {Map<String,{propNames: Array.<String>, mask: number, arrayIndex: number, name: String}>}
+     * @type {Map<String,{propNames: Array.<String>, mask: BigInt, arrayIndex: number, name: String}>}
      */
     this.components = components
     /**
@@ -505,7 +505,7 @@ function tmpArray(size)
  * Returns true if the given entity has all given components. The components do not need to belong to the same table.
  * 
  * @param {number} entity                       entity id
- * @param {Array.<String|Number>} components    Either an array of component names (that can be from different tables) or an array of component masks, one mask for each table
+ * @param {Array.<String|BigInt>} components    Either an array of component names (that can be from different tables) or an array of component masks, one mask for each table
  *
  * @return {boolean} true if entity has all components
  */
@@ -514,21 +514,26 @@ EntitySystem.prototype.has = function(entity, components)
     const { e: entityArray, s: entityTableState } = this
     const entityRow = entity * entityTableState.sizeOf
 
-    const masks = tmpArray(this.maskSize)
-    for (let i = 0; i < components.length; i++)
+    let masks
+    if (typeof components[0] === "bigint")
     {
-        const c = components[i]
-
-        if (typeof c === "string")
+        masks = components
+    }
+    else
+    {
+        masks = tmpArray(this.maskSize)
+        for (let i = 0; i < components.length; i++)
         {
-            const { arrayIndex, mask } = this.components.get(c)
+            const entry = this.components.get(components[i])
+            if (!entry)
+            {
+                throw new Error("Could not find component \"" + components[i] + "\"")
+            }
+            const { arrayIndex, mask } = entry
             masks[arrayIndex] |= mask
         }
-        else if (typeof c === "number")
-        {
-            masks[i] = BigInt(c)
-        }
     }
+
 
     for (let j = 0; j < masks.length; j++)
     {
@@ -766,6 +771,31 @@ EntitySystem.prototype.getPropConfig = function getPropConfig(name, ex = Error.p
     }
     return result
 }
+
+EntitySystem.prototype.masks = function masks(components)
+{
+    const { maskSize } = this
+
+    const masksArray = new Array(maskSize)
+    for (let i = 0; i < maskSize; i++)
+    {
+        masksArray[i] = 0n
+    }
+
+    for (let i = 0; i < components.length; i++)
+    {
+        const component = components[i]
+        const entry = this.components.get(component)
+        if (!entry)
+        {
+            throw new Error("Could not find component \"" + component + "\"")
+        }
+        masksArray[entry.arrayIndex] |= entry.mask
+    }
+
+    return masksArray
+}
+
 
 /**
  * Reads a single entity value without using the macro.

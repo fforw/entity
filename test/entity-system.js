@@ -91,6 +91,18 @@ describe("Entity System", () => {
 			}
 		)
 
+		assert.deepEqual(
+			system.masks(["Appearance", "Tag"]),
+			[
+				2n,1n
+			]
+		)
+
+		assert.deepEqual(
+			system.masks(["Appearance", "Tag"]),
+			system.masks(["Tag", "Appearance"])
+		)
+
 		const dummy = system.newEntity({
 			x: 1, y: 2, z: 3,
 			health: 4
@@ -106,6 +118,10 @@ describe("Entity System", () => {
 		const idRow = id * system.s.sizeOf
 
 		const columnRow = 5
+
+
+		assert(system.has(id, system.masks(["Appearance", "Health"])))
+		assert(!system.has(id, system.masks(["Appearance", "Tag"])))
 
 		assert(system.e[idRow    ] === 7) // "exists" + Appearance + Health
 		assert(system.e[idRow + 1] === 0) 
@@ -561,5 +577,6 @@ describe("Entity System", () => {
 		})
 
 	})
+
 
 });
