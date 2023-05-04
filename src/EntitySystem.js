@@ -935,7 +935,7 @@ EntitySystem.fromJSON = function fromJSON(config, json)
 {
     const sys = new EntitySystem(config)
 
-    const { entities } = json
+    const entities = json.entities.slice()
 
     // sort entities so the highest entity ids come first. This way we grow only once if we need to.
     entities.sort((a,b) => b._id - a._id)
