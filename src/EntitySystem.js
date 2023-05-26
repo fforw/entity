@@ -772,6 +772,14 @@ EntitySystem.prototype.getPropConfig = function getPropConfig(name, ex = Error.p
     return result
 }
 
+/**
+ * Returns an array of mask values for the given component names. The array will contain one BigInt value
+ * per existing layout table.
+ *
+ * @param {Array.<string>} components   component names
+ *
+ * @return {Array.<BigInt>} masks for the given components, one per existing layout table
+ */
 EntitySystem.prototype.masks = function masks(components)
 {
     const { maskSize } = this
